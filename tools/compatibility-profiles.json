@@ -1,0 +1,22 @@
+[
+  {
+    "id": "esm-26.1027",
+    "verifiedVersions": [
+      "26.1027.6604"
+    ],
+    "runtime": {
+      "sha256": "837514f2fe26893133fabafb6d4094e997b9d43eb8239ba3d8e0524f90e7b252",
+      "members": 21581
+    }
+  },
+  {
+    "id": "rspack-26.1029",
+    "verifiedVersions": [
+      "26.1029.7803"
+    ],
+    "runtime": {
+      "sha256": "ad8e0ba5e2263cd8917d5b27aa82df4b1de0b565347f10db4b7db052069b8b96",
+      "members": 18552
+    }
+  }
+]

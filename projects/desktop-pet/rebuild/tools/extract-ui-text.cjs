@@ -1,0 +1,28 @@
+// Static pure-helper extraction. Never imports or boots the original app.
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const {inspect,extractClosure}=require('./static-ast.cjs');
+const workspace=path.resolve(__dirname,'../../../..'),snapshot=path.join(workspace,'research/desktop-pet/complete-26.1027.6604'),assets=path.join(snapshot,'extracted/webview/assets'),out=path.join(snapshot,'derived');
+const digest=s=>crypto.createHash('sha256').update(s).digest('hex');
+const snapshotRecords=JSON.parse(fs.readFileSync(path.join(snapshot,'snapshot.json'),'utf8')).records;
+const manifests=[];
+function collect(file,roots){
+ const info=inspect(path.join(assets,file)),record=snapshotRecords.find(r=>r.path==='webview/assets/'+file);if(!record||record.sha256!==digest(info.source))throw Error('Original helper snapshot changed: '+file);
+ const result=extractClosure(info,roots,{}),imports={};
+ for(const name of result.external){const binding=info.program.scope.getBinding(name);if(!binding?.path.isImportSpecifier())throw Error('Unresolved original helper binding: '+name);imports[name]={module:binding.path.parent.source.value,export:binding.path.node.imported.name};}
+ manifests.push({file,sha256:digest(info.source),roots,bindings:result.nodes.map(({code,...node})=>({...node,sha256:digest(code)})),imports});
+ return{body:result.body,imports,returns:roots.map(name=>`${JSON.stringify(name)}:${info.exports.get(name)||name}`).join(',')};
+}
+function factory(value,bindings){return `(function(bindings){const {${Object.keys(value.imports).join(',')}}=bindings;\n${value.body}\nreturn {${value.returns}};\n})(${bindings})`;}
+const runtime=collect('rolldown-runtime-428824ca0286.js',['a','n','r','t']);
+const shared=collect('app-shared-845378c6057d.js',['bpt','vpt','gIt','$Ft','GPt','sIt','cIt','uIt','fIt','rIt','dIt','tIt','qPt','pIt','Gct','Kct']);
+const initial=collect('app-initial-fb51ee65d20a.js',['B$','F1n','I1n','oJn','MQn']);
+const bindingObject=imports=>'{'+Object.entries(imports).map(([local,value])=>`${JSON.stringify(local)}:${value.module==='./rolldown-runtime-428824ca0286.js'?'runtime':value.module==='./app-shared-845378c6057d.js'?'shared':(()=>{throw Error('Unreviewed pure dependency: '+value.module);})()}[${JSON.stringify(value.export)}]`).join(',')+'}';
+const overlayFile='avatar-overlay-native-page-3b2745370183.js',overlay=inspect(path.join(assets,overlayFile)),normalize=overlay.get('sp',true);
+if(!normalize.code||normalize.dependencies.join(',')!=='mo,Tr')throw Error('Original subtitle helper boundary changed');
+manifests.push({file:overlayFile,sha256:digest(overlay.source),roots:['sp'],bindings:[{name:'sp',start:normalize.start,end:normalize.end,sha256:digest(normalize.code)}],imports:{mo:{module:'app-initial',export:'oJn'},Tr:{module:'app-initial',export:'MQn'}}});
+const code=`// Generated original pure display-text helpers. No app bootstrap, backend or UI.\n'use strict';\nconst runtime=${factory(runtime,'{}')};\nconst shared=${factory(shared,bindingObject(shared.imports))};\nconst initial=${factory(initial,bindingObject(initial.imports))};\nconst mo=initial.oJn,Tr=initial.MQn;\n${normalize.code}\n// Adapter composition follows original ip's final agentMessage path exactly.\nfunction normalizeOriginalAgentMessage(text,{automation=false}={}){\n const visible=initial['B$'](text);const notification=(automation?initial.I1n:initial.F1n)(visible);\n return notification?.decision==='DONT_NOTIFY'?null:sp(notification?.notificationMessage??notification?.visibleText??visible);\n}\nmodule.exports={normalizeOriginalSubtitle:sp,normalizeOriginalAgentMessage,extractOriginalDisplayChannel:initial['B$'],extractOriginalNotificationWrapper:initial.F1n,extractOriginalAutomationWrapper:initial.I1n,getOriginalPlatform:shared.Gct,getOriginalWindowChrome:shared.Kct};\n`;
+fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,'ui-text-original.cjs'),code);
+const esm=code.replace(/module\.exports=\{[^\n]+\};\n$/,()=>`const normalizeOriginalSubtitle=sp,extractOriginalDisplayChannel=initial['B$'],extractOriginalNotificationWrapper=initial.F1n,extractOriginalAutomationWrapper=initial.I1n,getOriginalPlatform=shared.Gct,getOriginalWindowChrome=shared.Kct;\nexport {normalizeOriginalSubtitle,normalizeOriginalAgentMessage,extractOriginalDisplayChannel,extractOriginalNotificationWrapper,extractOriginalAutomationWrapper,getOriginalPlatform,getOriginalWindowChrome};\n`);
+fs.writeFileSync(path.join(out,'ui-text-original.js'),esm);
+fs.writeFileSync(path.join(out,'ui-text-original.provenance.json'),JSON.stringify({title:'원본 알림 본문 정규화·플랫폼 함수 추출',snapshot:'26.1027.6604',originalBodiesUnchanged:true,bootstrapExecuted:false,outputSha256:digest(code),esmSha256:digest(esm),environmentRequirements:['A real browser document: original named-character-reference decoder creates an i element at initialization. Do not require this in a DOM-less Node main process.','A real navigator for getOriginalPlatform only.'],manifests,limitations:['Original helpers are extracted without app bootstrap. This does not recreate session models or claim every provider uses Codex notification envelopes.','No DOM/account/service is fabricated. ESM is intended for actual renderer DOM.','normalizeOriginalAgentMessage is an explicit adapter composition of the original final agentMessage normalization branch; original ip/op selection of reasoning/tool/command items is not replaced.']},null,2));
+console.log(JSON.stringify({output:'derived/ui-text-original.cjs',originalBindings:manifests.map(m=>({file:m.file,count:m.bindings.length})),sha256:digest(code),originalAppExecuted:false},null,2));

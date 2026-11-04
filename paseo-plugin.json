@@ -1,0 +1,20 @@
+{
+  "id": "paseo-codex-pets",
+  "name": "파세오 바탕화면 펫",
+  "description": "파세오 대화 상태와 연결되는 Windows 바탕화면 펫",
+  "requirements": {
+    "paseo": ">=0.14.0"
+  },
+  "build": [
+    [
+      "npm",
+      "ci",
+      "--include=dev",
+      "--ignore-scripts"
+    ],
+    [
+      "node",
+      "tools/prepare.cjs"
+    ]
+  ]
+}

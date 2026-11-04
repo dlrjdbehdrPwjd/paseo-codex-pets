@@ -1,0 +1,55 @@
+{
+  "name": "paseo-codex-pets",
+  "version": "0.8.1-beta.1",
+  "scripts": {
+    "prepare:pet": "node tools/prepare.cjs",
+    "check:local": "node tools/prepare.cjs --check"
+  },
+  "devDependencies": {
+    "@babel/generator": "^7.28.0",
+    "@babel/parser": "^7.28.0",
+    "@babel/traverse": "^7.28.0",
+    "@getpaseo/plugin": "0.14.0",
+    "@types/node": "^24.0.0",
+    "electron": "40.10.6",
+    "es-module-lexer": "^2.0.0",
+    "esbuild": "0.25.12",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@getpaseo/client": "0.14.0"
+  },
+  "description": "파세오 대화 상태와 연결되는 Windows 바탕화면 펫",
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "npm-shrinkwrap.json",
+    "index.server.ts",
+    "index.client.ts",
+    "server/",
+    "tools/",
+    "projects/",
+    "paseo-plugin.json",
+    "README.md",
+    "OVERVIEW.md",
+    "NOTICE.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shotgun1107/paseo-codex-pets.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shotgun1107/paseo-codex-pets/issues"
+  },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  }
+}

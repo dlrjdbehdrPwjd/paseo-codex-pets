@@ -1,0 +1,6 @@
+node_modules/
+research/
+artifacts/
+prepared.local.json
+server/launch.json
+*.tgz

@@ -6,7 +6,7 @@ for(const old of ['bridge','shared','plugin/shared']){const target=path.resolve(
 for(const dir of ['renderer','host','voice','plugin'])fs.cpSync(path.join(source,dir),path.join(app,dir),{recursive:true});
 fs.cpSync(path.join(snapshot,'derived'),path.join(app,'original/derived'),{recursive:true});
 const copied=path.join(app,'original/extracted/webview');
-const snapshotHash=JSON.parse(fs.readFileSync(path.join(snapshot,'summary.json'),'utf8')).asarSha256;
+const snapshotSummary=JSON.parse(fs.readFileSync(path.join(snapshot,'summary.json'),'utf8')),snapshotHash=snapshotSummary.asarSha256;
 const marker=path.join(app,'original/snapshot.json');
 if(!fs.existsSync(marker)||JSON.parse(fs.readFileSync(marker,'utf8')).asarSha256!==snapshotHash){fs.cpSync(path.join(snapshot,'extracted/webview'),copied,{recursive:true});fs.writeFileSync(marker,JSON.stringify({asarSha256:snapshotHash}));}
 if(rspack){
@@ -17,15 +17,19 @@ if(rspack){
  require('./patch-runtime.cjs').applyRuntimePatches(path.join(app,'original'));
 }
 const originalHtml=fs.readFileSync(path.join(snapshot,'extracted/webview/index.html'),'utf8');
+const sourceAsar=fs.existsSync(path.join(snapshot,'app.asar'))?path.join(snapshot,'app.asar'):snapshotSummary.source??JSON.parse(fs.readFileSync(path.join(snapshot,rspack?'inventory.json':'snapshot.json'),'utf8')).source;
+const archiveOverrides=rspack?[...JSON.parse(fs.readFileSync(path.join(snapshot,'derived/rspack-patches.json'),'utf8')).patches.map(p=>'extracted/'+p.file),'extracted/webview/assets/pet-runtime.js']:['extracted/webview/assets/app-initial-fb51ee65d20a.js'];
+require('./pack-original.cjs').packOriginal(sourceAsar,path.join(app,'original'),archiveOverrides);
 const layerOrder=originalHtml.match(/@layer\s+theme,\s*base,\s*components,\s*utilities;/)?.[0];
 if(!layerOrder)throw Error('Original CSS layer order not found');
-const css=`<style>${layerOrder}</style>`+JSON.parse(fs.readFileSync(path.join(snapshot,'derived/surface-styles.json'),'utf8')).styles.map(({file})=>`<link rel="stylesheet" href="original/extracted/webview/assets/${file}">`).join('');
+const css=`<style>${layerOrder}</style>`+JSON.parse(fs.readFileSync(path.join(snapshot,'derived/surface-styles.json'),'utf8')).styles.map(({file})=>`<link rel="stylesheet" href="original.asar/extracted/webview/assets/${file}">`).join('');
 fs.writeFileSync(path.join(app,'index.html'),`<!doctype html><html lang="ko" data-theme="light" data-codex-os="win32" data-codex-window-type="electron" data-window-type="electron" data-codex-window-chrome="application-menu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none';script-src 'self' 'wasm-unsafe-eval';style-src 'self' 'unsafe-inline';font-src 'self' data:;img-src 'self' data: blob:;media-src 'self' blob: data:;connect-src 'self' file: blob:;worker-src 'self' blob:">${css}<title>파세오 바탕화면 펫</title><style>html,body,#root{margin:0;width:100%;height:100%;background:transparent;overflow:hidden}</style></head><body><div id="root"></div><script type="module" src="renderer/entry.mjs"></script></body></html>`);
-const settingsCss=JSON.parse(fs.readFileSync(path.join(snapshot,'derived/settings-original.provenance.json'),'utf8')).stylesheets.filter(({file})=>!css.includes(file)).map(({file})=>`<link rel="stylesheet" href="original/extracted/webview/assets/${file}">`).join('');
+const settingsCss=JSON.parse(fs.readFileSync(path.join(snapshot,'derived/settings-original.provenance.json'),'utf8')).stylesheets.filter(({file})=>!css.includes(file)).map(({file})=>`<link rel="stylesheet" href="original.asar/extracted/webview/assets/${file}">`).join('');
 fs.writeFileSync(path.join(app,'settings.html'),`<!doctype html><html lang="ko" data-theme="light" data-codex-os="win32" data-codex-window-type="electron" data-window-type="electron" data-codex-window-chrome="application-menu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none';script-src 'self' 'wasm-unsafe-eval';style-src 'self' 'unsafe-inline';font-src 'self' data:;img-src 'self' data: blob:;media-src 'self' blob: data:;connect-src 'self' file: blob:;worker-src 'self' blob:">${css}${settingsCss}<title>펫 설정</title><style>html,body,#root{margin:0;height:100%;min-height:100%;overflow:auto}</style></head><body class="font-sans"><div id="root"></div><script type="module" src="renderer/settings-entry.mjs"></script></body></html>`);
 const files={editor:'editor-original.js',surface:'surface-native.js',settings:'settings-original.js',uiText:'ui-text-original.js'};
 const config={userData:path.join(process.env.APPDATA,'PaseoCodexPet'),defaultCwd:root,desktopModule:'original/derived/desktop-original.cjs',page:'index.html',settingsPage:'settings.html',allowMicrophone:true,sources:{...Object.fromEntries(Object.entries(files).map(([key,file])=>[key,'original/derived/'+file])),shared:'original/extracted/webview/assets/app-shared-845378c6057d.js',initial:'original/extracted/webview/assets/app-initial-fb51ee65d20a.js',locale:'original/extracted/webview/assets/ko-KR-dbea059203ae.js'}};
 if(rspack)for(const name of ['shared','initial','locale'])config.sources[name]='original/derived/'+name+'-original.js';
+config.desktopModule=config.desktopModule.replace(/^original\//,'original.asar/');for(const name in config.sources)config.sources[name]=config.sources[name].replace(/^original\//,'original.asar/');
 fs.writeFileSync(path.join(app,'runtime-config.json'),JSON.stringify(config,null,2));
 esbuild.buildSync({entryPoints:[path.join(source,'host/main.cjs')],bundle:true,platform:'node',format:'cjs',target:'node24',external:['electron','bufferutil','utf-8-validate'],outfile:path.join(app,'host/main.cjs')});
 const plugin=path.join(app,'plugin');fs.mkdirSync(plugin,{recursive:true});

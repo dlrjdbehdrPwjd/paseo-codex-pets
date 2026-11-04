@@ -19,7 +19,7 @@ async function prepare(){
  if(!compatibility.supported)throw Error('Codex '+compatibility.version+'의 펫 런타임은 아직 검증하지 않았습니다. 런타임 지문: '+compatibility.runtime.sha256+'; 기존 설치는 변경하지 않았습니다.');
  if(process.argv.includes('--check')){console.log('지원하는 Codex 설치본을 확인했습니다. 파일 추출·다운로드·실행은 하지 않았습니다.');return;}
  const fingerprint=sourceFingerprint();
- if(!process.argv.includes('--force'))try{const saved=JSON.parse(fs.readFileSync(path.join(root,'prepared.local.json'),'utf8')),launch=JSON.parse(fs.readFileSync(path.join(root,'server/launch.json'),'utf8'));if(saved.sourceFingerprint===fingerprint&&saved.compatibility?.runtime.sha256===compatibility.runtime.sha256&&launch.cwd===path.join(root,'artifacts/desktop-pet/rebuild/package/app')&&fs.existsSync(launch.entry)&&fs.existsSync(launch.executable)){console.log('동일한 소스와 원본 런타임의 로컬 준비 결과를 재사용합니다.');return;}}catch{}
+ if(!process.argv.includes('--force'))try{const saved=JSON.parse(fs.readFileSync(path.join(root,'prepared.local.json'),'utf8')),launch=JSON.parse(fs.readFileSync(path.join(root,'server/launch.json'),'utf8'));if(saved.sourceFingerprint===fingerprint&&saved.compatibility?.runtime.sha256===compatibility.runtime.sha256&&launch.cwd===path.join(root,'artifacts/desktop-pet/rebuild/package/app')&&fs.existsSync(launch.entry)&&fs.existsSync(launch.executable)&&fs.existsSync(path.join(launch.cwd,'original.asar'))){console.log('동일한 소스와 원본 런타임의 로컬 준비 결과를 재사용합니다.');return;}}catch{}
  // 의존성 lifecycle은 꺼 둔다. 고정된 Electron 준비 스크립트만 이 명시적 준비 단계에서 실행한다.
  const electronInstall=require.resolve('electron/install.js',{paths:[root]});
  if(!fs.existsSync(path.join(path.dirname(electronInstall),'dist/electron.exe')))execFileSync(process.execPath,[electronInstall],{cwd:root,stdio:'inherit',windowsHide:true,timeout:300000});

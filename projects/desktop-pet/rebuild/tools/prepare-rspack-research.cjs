@@ -48,7 +48,7 @@ function prepare(filename,output){
   const manifest={title:'코덱스 현재 펫 원본 로더 추출',version:JSON.parse(archive.read('package.json')).version,runtime:{file,sha256:runtime.sha256,info:runtime.info},plans,groups,chunks:[...chunks],modules:[...index.values()],contract,duplicateHandling:'원본 로더의 등록과 모듈 캐시를 그대로 사용한다. 정적 분석기가 임의로 중복 팩터리를 선택하지 않는다.',records,bootstrapExecuted:false};
   fs.writeFileSync(path.join(output,'rspack-manifest.json'),JSON.stringify(manifest,null,2));fs.writeFileSync(path.join(output,'locale.json'),JSON.stringify(locale,null,2));
   const fd=fs.openSync(filename,'r'),buffer=Buffer.alloc(4*1024*1024),digest=crypto.createHash('sha256');try{let length;while(length=fs.readSync(fd,buffer))digest.update(buffer.subarray(0,length));}finally{fs.closeSync(fd);}
-  fs.writeFileSync(path.join(output,'summary.json'),JSON.stringify({version:manifest.version,bundler:'rspack',asarSha256:digest.digest('hex')},null,2));return manifest;
+  fs.writeFileSync(path.join(output,'summary.json'),JSON.stringify({version:manifest.version,source:filename,bundler:'rspack',asarSha256:digest.digest('hex')},null,2));return manifest;
  }finally{archive.close();}
 }
 if(require.main===module){try{const result=prepare(path.resolve(process.argv[2]),path.resolve(process.argv[3]));console.log(JSON.stringify({modules:result.modules.length,chunks:result.chunks.length,complete:result.contract.complete,bootstrapExecuted:false}));}catch(e){console.error(e.stack);process.exitCode=1;}}

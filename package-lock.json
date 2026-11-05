@@ -1,12 +1,12 @@
 {
   "name": "paseo-codex-pets",
-  "version": "0.9.0-beta.1",
+  "version": "0.9.0-beta.2",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "paseo-codex-pets",
-      "version": "0.9.0-beta.1",
+      "version": "0.9.0-beta.2",
       "dependencies": {
         "@getpaseo/client": "0.14.0"
       },

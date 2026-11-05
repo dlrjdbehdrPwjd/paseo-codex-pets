@@ -1,7 +1,9 @@
 const fs=require('node:fs'),path=require('node:path'),{spawn}=require('node:child_process'),{randomUUID}=require('node:crypto');
 const {createPetService}=require('./service.cjs');
 const {createPeer,SERIALIZATION}=require('./protocol.cjs');
+const {resolveLaunch}=require('./launch.cjs');
 async function createPetController({launch,config:providedConfig=undefined,onDiagnostic=()=>{},spawnChild=spawn,connect=undefined,quitTimeoutMs=5000,killTimeoutMs=5000}){
+ launch=resolveLaunch(launch);
  const config=providedConfig??JSON.parse(fs.readFileSync(launch.config,'utf8'));
  fs.mkdirSync(config.userData,{recursive:true});
  const log=value=>fs.appendFileSync(path.join(config.userData,'server-runtime.jsonl'),JSON.stringify({at:new Date().toISOString(),...value})+'\n');

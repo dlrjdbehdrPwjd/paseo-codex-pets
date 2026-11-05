@@ -19,7 +19,7 @@ async function prepare(){
  if(!compatibility.supported)throw Error('Codex '+compatibility.version+'의 펫 런타임은 아직 검증하지 않았습니다. 런타임 지문: '+compatibility.runtime.sha256+'; 기존 설치는 변경하지 않았습니다.');
  if(process.argv.includes('--check')){console.log('지원하는 Codex 설치본을 확인했습니다. 파일 추출·다운로드·실행은 하지 않았습니다.');return;}
  const fingerprint=sourceFingerprint();
- if(!process.argv.includes('--force'))try{const saved=JSON.parse(fs.readFileSync(path.join(root,'prepared.local.json'),'utf8')),launch=JSON.parse(fs.readFileSync(path.join(root,'server/launch.json'),'utf8'));if(saved.sourceFingerprint===fingerprint&&saved.compatibility?.runtime.sha256===compatibility.runtime.sha256&&launch.cwd===path.join(root,'artifacts/desktop-pet/rebuild/package/app')&&fs.existsSync(launch.entry)&&fs.existsSync(launch.executable)&&fs.existsSync(path.join(launch.cwd,'original.asar'))){console.log('동일한 소스와 원본 런타임의 로컬 준비 결과를 재사용합니다.');return;}}catch{}
+ if(!process.argv.includes('--force'))try{const saved=JSON.parse(fs.readFileSync(path.join(root,'prepared.local.json'),'utf8')),launch=JSON.parse(fs.readFileSync(path.join(root,'server/launch.json'),'utf8')),resolve=value=>path.resolve(root,value);if(launch.version===2&&saved.sourceFingerprint===fingerprint&&saved.compatibility?.runtime.sha256===compatibility.runtime.sha256&&resolve(launch.cwd)===path.join(root,'artifacts/desktop-pet/rebuild/package/app')&&fs.existsSync(resolve(launch.entry))&&fs.existsSync(resolve(launch.executable))&&fs.existsSync(path.join(resolve(launch.cwd),'original.asar'))){console.log('동일한 소스와 원본 런타임의 로컬 준비 결과를 재사용합니다.');return;}}catch{}
  // 의존성 lifecycle은 꺼 둔다. 고정된 Electron 준비 스크립트만 이 명시적 준비 단계에서 실행한다.
  const electronInstall=require.resolve('electron/install.js',{paths:[root]});
  if(!fs.existsSync(path.join(path.dirname(electronInstall),'dist/electron.exe')))execFileSync(process.execPath,[electronInstall],{cwd:root,stdio:'inherit',windowsHide:true,timeout:300000});
@@ -33,7 +33,7 @@ async function prepare(){
  const app=path.join(root,'artifacts/desktop-pet/rebuild/package/app'),configFile=path.join(app,'runtime-config.json'),config=JSON.parse(await fsp.readFile(configFile,'utf8'));
  config.userData=path.join(process.env.APPDATA??path.join(os.homedir(),'AppData/Roaming'),'PaseoCodexPet');config.defaultCwd=null;
  await fsp.writeFile(configFile,JSON.stringify(config,null,2));
- await fsp.writeFile(path.join(root,'server/launch.json'),JSON.stringify({executable:path.join(app,'runtime/electron/electron.exe'),entry:path.join(app,'host/main.cjs'),config:configFile,cwd:app},null,2));
+ await fsp.writeFile(path.join(root,'server/launch.json'),JSON.stringify({version:2,instanceId:crypto.randomUUID(),executable:path.relative(root,path.join(app,'runtime/electron/electron.exe')),entry:path.relative(root,path.join(app,'host/main.cjs')),config:path.relative(root,configFile),cwd:path.relative(root,app)},null,2));
  await fsp.writeFile(path.join(root,'prepared.local.json'),JSON.stringify({title:'공유 펫 로컬 준비 결과',version:JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8')).version,preparedAt:new Date().toISOString(),platform:process.platform,arch:process.arch,compatibility,sourceFingerprint:fingerprint},null,2));
  console.log('준비 완료. 이 폴더를 파세오 플러그인으로 설치할 수 있습니다. Codex 원본 앱은 실행하지 않았습니다.');
 }

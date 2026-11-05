@@ -1,6 +1,6 @@
 {
   "name": "paseo-codex-pets",
-  "version": "0.9.0-beta.1",
+  "version": "0.9.0-beta.2",
   "scripts": {
     "prepare:pet": "node tools/prepare.cjs",
     "check:local": "node tools/prepare.cjs --check"

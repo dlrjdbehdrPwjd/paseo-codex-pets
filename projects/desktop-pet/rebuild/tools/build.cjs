@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),esbuild=require('esbuild'),crypto=require('node:crypto');
-const version='0.9.0-beta.1';
+const version='0.9.0-beta.2';
 const source=path.resolve(__dirname,'..'),root=path.resolve(source,'../../..'),snapshot=path.resolve(process.env.PASEO_PET_BUILD_SNAPSHOT??path.join(root,'research/desktop-pet/complete-26.1027.6604')),rspack=fs.existsSync(path.join(snapshot,'rspack-manifest.json'));
 const output=path.resolve(process.env.PASEO_PET_BUILD_OUTPUT??path.join(root,'artifacts/desktop-pet/rebuild/package')),app=path.join(output,'app');fs.mkdirSync(app,{recursive:true});
 for(const file of ['derived/editor-original.js','derived/surface-native.js','derived/surface-styles.json','derived/desktop-original.cjs','derived/settings-original.js','derived/settings-original.provenance.json','derived/ui-text-original.js'])if(!fs.existsSync(path.join(snapshot,file)))throw Error('Run original extraction first: '+file);

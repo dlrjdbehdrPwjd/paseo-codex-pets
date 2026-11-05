@@ -2,7 +2,8 @@ const fs=require('node:fs/promises'),path=require('node:path'),{randomUUID}=requ
 // 임시 이미지의 생성·정상 종료 정리는 펫이 소유한다. 강제 종료 시 부모가 실행 세대 폴더를 정리한다.
 function createLocalAttachments({directory,request}){
  const owned=new Set();let pending=Promise.resolve();
- const grantPaths=paths=>{const task=request('attachments.grant',paths);pending=Promise.all([pending,task]).then(()=>{});return task;};
+ // 개별 승인 실패는 호출자에게 돌려주고, 후속 요청의 대기열에는 실패를 남기지 않는다.
+ const grantPaths=paths=>{const task=Promise.resolve().then(()=>request('attachments.grant',paths));pending=Promise.all([pending,task.catch(()=>{})]).then(()=>{});return task;};
  async function persistImageFileToTemp({bytes,mimeType}){
   const extensions={'image/png':'png','image/jpeg':'jpg','image/gif':'gif','image/webp':'webp','image/avif':'avif','image/bmp':'bmp','image/tiff':'tiff','image/svg+xml':'svg','image/heic':'heic'};
   const extension=extensions[mimeType];if(!extension)throw Error('지원하지 않는 이미지 형식입니다.');

@@ -1,10 +1,12 @@
 import {capturePcm,createAudioPlayer} from './audio.mjs';
 
 /** Returns exactly the original Ev voiceOverride contract and dictation host seam. */
-export function createPaseoSpeechClient({request,subscribe,mediaDevices=globalThis.navigator?.mediaDevices,permissions=globalThis.navigator?.permissions,AudioContext=globalThis.AudioContext,capture=capturePcm,player=createAudioPlayer({AudioContext}),getAgentId=()=>undefined,getDeviceId=()=>undefined,onError=console.error}){
+export function createPaseoSpeechClient({request,subscribe,mediaDevices=globalThis.navigator?.mediaDevices,permissions=globalThis.navigator?.permissions,focusTarget=globalThis.window,AudioContext=globalThis.AudioContext,capture=capturePcm,player=createAudioPlayer({AudioContext}),getAgentId=()=>undefined,getDeviceId=()=>undefined,onError=console.error}){
  if(typeof request!=='function'||typeof subscribe!=='function')throw Error('음성 IPC 연결이 필요합니다.');
  let disposed=false,epoch=0,captureSession,queue=Promise.resolve(),state={canStart:false,caption:null,conversationId:null,isMicrophoneMuted:false,isMuted:false,phase:'inactive',startError:null,voiceActivity:'idle',isSessionActive:false,capabilitiesLoaded:false,capabilities:{voice:{supported:false,reason:'음성 지원 확인 중입니다.'},dictation:{supported:false,reason:'받아쓰기 지원 확인 중입니다.'}}};
- const listeners=new Set(),connections=new Map();
+ const listeners=new Set(),connections=new Map();let capabilityGeneration=0,permissionStatus,capabilitiesClosed=false;
+ const refreshAfterChange=()=>{if(!disposed&&!capabilitiesClosed)void refreshCapabilities().catch(error=>{if(!disposed&&!capabilitiesClosed)onError(error);});};
+ focusTarget?.addEventListener?.('focus',refreshAfterChange);
  const update=patch=>{state={...state,...patch};listeners.forEach(fn=>fn());};
  const report=error=>{onError(error);update({startError:error.message??String(error)});};
  async function stop(){++epoch;const current=captureSession,wasActive=state.isSessionActive;captureSession=undefined;update({phase:state.phase==='inactive'?'inactive':'stopping'});player.stop();try{await current?.stop();await queue;await request('speech.voice.stop',{});if(!disposed)update({phase:'inactive',voiceActivity:'idle',caption:null,isSessionActive:false});}catch(error){if(!disposed)update({phase:wasActive?'stopping':'inactive',isSessionActive:wasActive,voiceActivity:'idle',startError:error.message??String(error)});throw error;}}
@@ -26,6 +28,7 @@ export function createPaseoSpeechClient({request,subscribe,mediaDevices=globalTh
  function toggleMute(){const value=!state.isMuted;player.setMuted(value);update({isMuted:value});}
  const off=subscribe(event=>{
   if(disposed)return;
+  if(event.type==='capabilities-changed'){refreshAfterChange();return;}
   if(event.type==='dictation-event'){const c=connections.get(event.connectionId);if(c)c.deliver(event.event);return;}
   if(event.type==='voice-error'){void fail(Error(event.error));return;}
   if(state.phase!=='active')return;
@@ -38,11 +41,15 @@ export function createPaseoSpeechClient({request,subscribe,mediaDevices=globalTh
   }
  });
  async function refreshCapabilities(){
-  const server=await request('speech.capabilities',{});let microphone='prompt';
-  try{microphone=(await permissions?.query({name:'microphone'}))?.state??'prompt';}catch{}
+  if(disposed||capabilitiesClosed)throw Error('음성 지원 조회가 종료됐습니다.');
+  const generation=++capabilityGeneration,server=await request('speech.capabilities',{});let microphone='prompt',permission;
+  try{permission=await permissions?.query({name:'microphone'});microphone=permission?.state??'prompt';}catch{}
   const localReason=!mediaDevices?.getUserMedia||!AudioContext?'이 환경에서 마이크 캡처를 사용할 수 없습니다.':microphone==='denied'?'마이크 사용 권한이 거부됐습니다.':null;
   const caps={voice:localReason?{supported:false,reason:localReason}:server.voice,dictation:localReason?{supported:false,reason:localReason}:server.dictation,microphone};
-  if(!disposed)update({capabilitiesLoaded:true,capabilities:caps,canStart:caps.voice.supported===true});return caps;
+  if(!disposed&&!capabilitiesClosed&&generation===capabilityGeneration){
+   if(permission!==permissionStatus){permissionStatus?.removeEventListener?.('change',refreshAfterChange);permissionStatus=permission;permissionStatus?.addEventListener?.('change',refreshAfterChange);}
+   update({capabilitiesLoaded:true,capabilities:caps,canStart:caps.voice.supported===true});
+  }return caps;
  }
  const dictationStreaming={async connect(surface,callback){
   if(!state.capabilities.dictation.supported)throw Error(state.capabilities.dictation.reason);
@@ -53,5 +60,5 @@ export function createPaseoSpeechClient({request,subscribe,mediaDevices=globalTh
  }};
  return {subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn);},getSnapshot:()=>state,
   voiceOverride:(value=state)=>({...value,start,stop,toggleMicrophoneMute,toggleMute}),dictationStreaming,refreshCapabilities,
-  async dispose(){if(disposed)return;try{await stop();}finally{disposed=true;off();for(const c of [...connections.values()])c[Symbol.dispose]();connections.clear();listeners.clear();await player.dispose();}}};
+  async dispose(){if(disposed)return;capabilitiesClosed=true;++capabilityGeneration;permissionStatus?.removeEventListener?.('change',refreshAfterChange);focusTarget?.removeEventListener?.('focus',refreshAfterChange);try{await stop();}finally{disposed=true;off();for(const c of [...connections.values()])c[Symbol.dispose]();connections.clear();listeners.clear();await player.dispose();}}};
 }

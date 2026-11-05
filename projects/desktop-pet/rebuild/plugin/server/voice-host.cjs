@@ -15,13 +15,14 @@ function createPaseoSpeechHost({driver,emit}){
  const close=connection=>{if(connection.closed)return;publish(connection,{type:'close',code:1000,reason:''});connection.closed=true;connections.delete(connection.id);};
  const failure=(connection,error)=>{if(connection.closed)return;message(connection,{type:'session.error',fatal:true,error:{code:error.reasonCode??'paseo_dictation_error',message:error.message??String(error),retryable:error.retryable===true}});if(connection.started)driver.cancelDictationStream(connection.dictationId);close(connection);};
  const listeners=[
+  driver.on('status',message=>{if(!disposed&&message.payload?.status==='server_info')emit({type:'capabilities-changed'});}),
   driver.on('audio_output',msg=>{if(voiceActive&&!disposed)emit({type:'audio-output',payload:msg.payload});}),
   driver.on('voice_input_state',msg=>{if(voiceActive&&!disposed)emit({type:'voice-input-state',payload:msg.payload});}),
   driver.on('transcription_result',msg=>{if(voiceActive&&!disposed)emit({type:'transcription',payload:{text:msg.payload.text}});}),
   driver.on('dictation_stream_partial',msg=>{const c=[...connections.values()].find(c=>c.dictationId===msg.payload.dictationId);if(c&&!c.closed)message(c,{type:'transcript.segment',utterance_id:c.dictationId,revision:++c.revision,text:msg.payload.text});}),
   driver.on('dictation_stream_error',msg=>{const c=[...connections.values()].find(c=>c.dictationId===msg.payload.dictationId);if(c)failure(c,{...msg.payload,message:msg.payload.error});}),
  ];
- const offStatus=driver.subscribeConnectionStatus?.(state=>{if(state.status==='connected')return;if(voiceActive||reservation?.isReserved()){voiceGeneration++;voiceActive=false;void reservation?.cancel().catch(()=>{});emit({type:'voice-error',error:'파세오 연결이 끊겼습니다.'});}for(const c of [...connections.values()])failure(c,Error('파세오 연결이 끊겼습니다.'));});
+ const offStatus=driver.subscribeConnectionStatus?.(state=>{if(disposed)return;emit({type:'capabilities-changed'});if(state.status==='connected')return;if(voiceActive||reservation?.isReserved()){voiceGeneration++;voiceActive=false;void reservation?.cancel().catch(()=>{});emit({type:'voice-error',error:'파세오 연결이 끊겼습니다.'});}for(const c of [...connections.values()])failure(c,Error('파세오 연결이 끊겼습니다.'));});
  async function request(method,args={}){
   if(disposed)throw Error('음성 연결이 종료됐습니다.');
   switch(method){

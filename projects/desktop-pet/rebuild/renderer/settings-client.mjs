@@ -21,7 +21,8 @@ export function createOriginalSettingsClient({request,subscribe}){
  }
  return{
   readAll,
-  async write(key,value){if(disposed)throw Error('원본 설정 서비스가 종료됐습니다.');return request('settings.write',[key,value]);},
+  // undefined는 설정 삭제이고 null은 저장할 값이다. IPC에서 undefined가 사라지므로 메서드로 구분한다.
+  async write(key,value){if(disposed)throw Error('원본 설정 서비스가 종료됐습니다.');return value===undefined?request('settings.delete',[key]):request('settings.write',[key,value]);},
   async subscribe(key,callback){
    if(disposed||typeof key!=='string'||typeof callback!=='function')throw Error('원본 설정 구독이 올바르지 않습니다.');
    let bucket=listeners.get(key);if(!bucket)listeners.set(key,bucket=new Set());bucket.add(callback);

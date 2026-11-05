@@ -35,7 +35,7 @@ fs.mkdirSync(output,{recursive:true});
 fs.writeFileSync(path.join(output,'surface-original.js'),code);
 fs.writeFileSync(path.join(output,'surface-original-manifest.json'),JSON.stringify(manifest,null,2));
 // A raw ESM capsule retains imported live bindings and module singleton identity.
-// Only module URL literals and the one explicit auto-bootstrap call change.
+// Module URL literals, the one explicit auto-bootstrap call and the reviewed tray drag patch change.
 const transforms=[];
 for(const statement of source.program.node.body){
  if(statement.type==='ImportDeclaration'||(statement.type==='ExportNamedDeclaration'&&statement.source)){
@@ -52,9 +52,16 @@ source.program.traverse({CallExpression(p){
 const bootstraps=source.program.node.body.filter(statement=>statement.type==='ExpressionStatement'&&statement.expression.type==='CallExpression'&&statement.expression.callee.type==='Identifier'&&statement.expression.callee.name==='dy');
 if(bootstraps.length!==1||source.source.slice(bootstraps[0].start,bootstraps[0].end)!=='dy();')throw Error('Unexpected original surface auto-bootstrap; explicit review required');
 transforms.push({start:bootstraps[0].start,end:bootstraps[0].end,before:'dy();',after:'/* Original dy() auto-bootstrap deferred: call initializeOriginalSurface explicitly. */',kind:'defer-explicit-bootstrap'});
+// 원본 함수 본문 변경은 아래 한 곳뿐이다. 범위와 근거는 patch-runtime.cjs의 TRAY_DRAG_PATCH에 있다.
+const {TRAY_DRAG_PATCH,locateTrayPatch}=require('./patch-runtime.cjs'),trayPatch=TRAY_DRAG_PATCH.esm;
+const trayFunction=source.program.node.body.find(statement=>statement.type==='FunctionDeclaration'&&statement.id.name===trayPatch.function);
+if(!trayFunction||hash(source.source.slice(trayFunction.start,trayFunction.end))!==trayPatch.functionSha256)throw Error('드래그 카드 패치 대상 원문이 다릅니다: '+trayPatch.function);
+const trayAt=locateTrayPatch(source.source,trayPatch);
+if(trayAt<trayFunction.start||trayAt>=trayFunction.end)throw Error('드래그 카드 패치 지점이 대상 함수 밖입니다.');
+transforms.push({start:trayAt,end:trayAt+trayPatch.before.length,before:trayPatch.before,after:trayPatch.after,kind:TRAY_DRAG_PATCH.id});
 let nativeSource=source.source;
 for(const transform of [...transforms].sort((a,b)=>b.start-a.start))nativeSource=nativeSource.slice(0,transform.start)+transform.after+nativeSource.slice(transform.end);
-nativeSource+='\n// Capsule exports preserve the original ESM bindings and function bodies.\nexport {Ev as OriginalStateOwner,w_ as OriginalLayoutSubscriber,n_ as OriginalFrame,dy as initializeOriginalSurface,_v as OriginalServiceSurface,Tv as OriginalScopedSurface,pv as useOriginalResolvedAvatar,Hs as useOriginalAvatarSelection,Nc as useOriginalPetDimensions,J as useOriginalSetting,ie as originalPetSettingSpecs,kv as openOriginalPetSettings};\n';
+nativeSource+='\n// Capsule exports preserve the original ESM bindings. Function bodies change only by the reviewed tray drag patch.\nexport {Ev as OriginalStateOwner,w_ as OriginalLayoutSubscriber,n_ as OriginalFrame,dy as initializeOriginalSurface,_v as OriginalServiceSurface,Tv as OriginalScopedSurface,pv as useOriginalResolvedAvatar,Hs as useOriginalAvatarSelection,Nc as useOriginalPetDimensions,J as useOriginalSetting,ie as originalPetSettingSpecs,kv as openOriginalPetSettings,mt as OriginalButton,Qm as OriginalStatusIcon,Gp as OriginalReactDOM};\n';
 fs.writeFileSync(path.join(output,'surface-native.js'),nativeSource);
 
 // Audit reachable static ESM imports without importing any target module. Every

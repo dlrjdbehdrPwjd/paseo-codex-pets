@@ -4,12 +4,29 @@ const VERSION=1;
 // 파세오 Electron44와 펫 Electron40의 V8 advanced 포맷은 호환되지 않는다.
 // Node JSON IPC의 표준 Buffer 표현을 사용하며 base64 전송·분할 프로토콜은 만들지 않는다.
 const SERIALIZATION='json';
-const METHODS=new Set(['pets.list','pets.refresh','service.init','refresh','open-main','control','action','question','quick-chat','settings.read-all','settings.write','attachments.grant','workspace-files.read-binary','product-event','speech.capabilities','speech.voice.start','speech.voice.stop','speech.voice.audio','speech.voice.played','speech.dictation.connect','speech.dictation.send','speech.dictation.close','reservation.start','reservation.complete','reservation.cancel','reservation.dispose','reservation.activate','reservation.deactivate','reservation.terminated','attachments.release']);
+const METHODS=new Set(['pets.list','pets.refresh','service.init','refresh','open-main','child-groups.enable','open-agent','control','action','question','quick-chat','settings.read-all','settings.write','settings.delete','attachments.grant','workspace-files.read-binary','product-event','speech.capabilities','speech.voice.start','speech.voice.stop','speech.voice.audio','speech.voice.played','speech.dictation.connect','speech.dictation.send','speech.dictation.close','reservation.start','reservation.complete','reservation.cancel','reservation.dispose','reservation.activate','reservation.deactivate','reservation.terminated','attachments.release']);
 const EVENTS=new Set(['pets.changed','service.snapshot','settings.changed','speech.event','host.command','pet.status','pet.ready']);
 const object=v=>!!v&&typeof v==='object'&&!Array.isArray(v)&&!Buffer.isBuffer(v);
 const identifier=v=>typeof v==='string'&&v.length>0&&v.length<160;
+const sessionKey=v=>typeof v==='string'&&v.startsWith('paseo:')&&v.length<2048;
+const CHILD_STATUSES=new Set(['waiting','failed','running','initializing','completed','idle']);
+function validateChildGroups(groups){
+ if(!object(groups))throw Error('하위 에이전트 묶음은 객체여야 합니다.');
+ for(const [key,group]of Object.entries(groups)){
+  if(!object(group)||!sessionKey(key)||group.parentKey!==key||!identifier(group.parentAgentId)||!['own','synthetic'].includes(group.parentPresentation)||!Array.isArray(group.children)||!object(group.counts)||!CHILD_STATUSES.has(group.state)||typeof group.revision!=='string'||!/^[a-f0-9]{64}$/.test(group.revision))throw Error('하위 에이전트 묶음 형식이 올바르지 않습니다.');
+  const counts={total:group.children.length,waiting:0,failed:0,running:0,initializing:0,completed:0,idle:0},ids=new Set();
+  for(const child of group.children){
+   if(!object(child)||!identifier(child.agentId)||ids.has(child.agentId)||!sessionKey(child.key)||typeof child.title!=='string'||!CHILD_STATUSES.has(child.status)||typeof child.requiresAttention!=='boolean'||!Number.isFinite(child.updatedAtMs)||!Number.isInteger(child.depth)||child.depth<1)throw Error('하위 에이전트 항목이 올바르지 않습니다.');
+   ids.add(child.agentId);counts[child.status]++;
+  }
+  for(const [name,count]of Object.entries(counts))if(group.counts[name]!==count)throw Error('하위 에이전트 집계가 항목과 일치하지 않습니다.');
+  const state=['waiting','failed','running','initializing'].find(name=>counts[name]>0)??(counts.total>0&&counts.completed===counts.total?'completed':'idle');
+  if(group.state!==state)throw Error('하위 에이전트 전체 상태가 집계와 일치하지 않습니다.');
+ }
+ return groups;
+}
 function validateArgs(method,args){
- const counts={'pets.list':0,'pets.refresh':0,'service.init':0,refresh:0,'open-main':0,'settings.read-all':0,'settings.write':2,control:2,action:2,question:2,'quick-chat':8,'workspace-files.read-binary':1,'attachments.release':0,'reservation.start':0,'reservation.complete':0,'reservation.cancel':0,'reservation.dispose':0,'reservation.activate':0,'reservation.deactivate':1,'reservation.terminated':1};
+ const counts={'pets.list':0,'pets.refresh':0,'service.init':0,refresh:0,'open-main':0,'child-groups.enable':1,'open-agent':2,'settings.read-all':0,'settings.write':2,'settings.delete':1,control:2,action:2,question:2,'quick-chat':8,'workspace-files.read-binary':1,'attachments.release':0,'reservation.start':0,'reservation.complete':0,'reservation.cancel':0,'reservation.dispose':0,'reservation.activate':0,'reservation.deactivate':1,'reservation.terminated':1};
  if(method.startsWith('speech.')){
   if(!object(args))throw Error('음성 요청에는 객체 인수가 필요합니다.');
   if(method==='speech.voice.start'&&args.agentId!==undefined&&!identifier(args.agentId))throw Error('잘못된 음성 대화 ID입니다.');
@@ -18,7 +35,10 @@ function validateArgs(method,args){
   if(method==='speech.voice.audio'&&typeof args.format!=='string')throw Error('음성 형식이 필요합니다.');
  }else{
   if(!Array.isArray(args)||(counts[method]!==undefined&&args.length!==counts[method]))throw Error('IPC 메서드의 인수 개수가 올바르지 않습니다.');
-  if(method==='settings.write'&&typeof args[0]!=='string')throw Error('설정 키가 필요합니다.');
+  if(['settings.write','settings.delete'].includes(method)&&typeof args[0]!=='string')throw Error('설정 키가 필요합니다.');
+  if(method==='settings.write'&&args[1]===undefined)throw Error('설정 삭제에는 settings.delete를 사용해야 합니다.');
+  if(method==='child-groups.enable'&&typeof args[0]!=='boolean')throw Error('묶음 표시 준비 여부가 필요합니다.');
+  if(method==='open-agent'&&(!sessionKey(args[0])||!identifier(args[1])))throw Error('부모·자식 대화 식별자가 올바르지 않습니다.');
   if(method==='quick-chat'&&(typeof args[0]!=='string'||typeof args[1]!=='string'||args[4]!==null))throw Error('빠른 채팅 인수가 올바르지 않습니다.');
   if(['control','action','question'].includes(method)&&!object(args[0]))throw Error('알림 객체가 필요합니다.');
   if(method==='workspace-files.read-binary'&&(!object(args[0])||typeof args[0].path!=='string'))throw Error('첨부 파일 경로가 필요합니다.');
@@ -36,14 +56,16 @@ function validate(message,instanceId){
   if(p.method==='speech.dictation.send'&&(!identifier(p.args.connectionId)||!object(p.args.input)||(p.args.input.type==='audio.append'&&(!Buffer.isBuffer(p.args.input.audio)||p.args.input.audio.length>4500*1024))))throw Error('받아쓰기 IPC 데이터가 올바르지 않습니다.');
  }else if(message.type==='rpc.result'){
   if(!identifier(message.id)||typeof p.ok!=='boolean'||(!p.ok&&(!object(p.error)||typeof p.error.message!=='string')))throw Error('잘못된 IPC 응답입니다.');
+  if(p.ok&&p.result?.snapshot)validateChildGroups(p.result.snapshot.childGroups);
  }else{
   if(!EVENTS.has(p.name)||!object(p.value))throw Error('잘못된 IPC 이벤트입니다.');
   if(p.name==='service.snapshot'&&(!Array.isArray(p.value.sessions)||typeof p.value.connected!=='boolean'))throw Error('잘못된 상태 스냅샷입니다.');
+  if(p.name==='service.snapshot')validateChildGroups(p.value.childGroups);
   if(p.name==='host.command'&&!['show','hide','toggle','settings','quit'].includes(p.value.action))throw Error('잘못된 창 명령입니다.');
   if(p.name==='pet.status'&&(!Number.isInteger(p.value.pid)||typeof p.value.rendererReady!=='boolean'||typeof p.value.visible!=='boolean'))throw Error('잘못된 펫 실행 상태입니다.');
   if(p.name==='settings.changed'&&typeof p.value.key!=='string')throw Error('잘못된 설정 변경 이벤트입니다.');
   if(p.name==='pets.changed'&&(typeof p.value.revision!=='string'||!/^[a-f0-9]{64}$/.test(p.value.revision)))throw Error('잘못된 펫 목록 변경 이벤트입니다.');
-  if(p.name==='speech.event'&&!['audio-output','voice-input-state','transcription','dictation-event','voice-error'].includes(p.value.type))throw Error('잘못된 음성 이벤트입니다.');
+  if(p.name==='speech.event'&&!['audio-output','voice-input-state','transcription','dictation-event','voice-error','capabilities-changed'].includes(p.value.type))throw Error('잘못된 음성 이벤트입니다.');
   if(p.name==='speech.event'&&p.value.type==='audio-output'&&(!object(p.value.payload)||!Buffer.isBuffer(p.value.payload.audio)))throw Error('출력 음성 IPC에는 Buffer가 필요합니다.');
  }
  return message;
@@ -86,4 +108,4 @@ function decodeSpeech(method,args){
  if(method==='speech.dictation.send'){const input={...args.input};if(input.type==='audio.append')input.audio=input.audio.toString('base64');return{connectionId:args.connectionId,data:JSON.stringify(input)};}
  return args;
 }
-module.exports={VERSION,SERIALIZATION,METHODS,EVENTS,validate,createPeer,encodeSpeech,decodeSpeech,restoreWireBuffers};
+module.exports={VERSION,SERIALIZATION,METHODS,EVENTS,validate,validateChildGroups,createPeer,encodeSpeech,decodeSpeech,restoreWireBuffers};

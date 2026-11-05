@@ -1,4 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),esbuild=require('esbuild'),crypto=require('node:crypto');
+const version='0.9.0-beta.1';
 const source=path.resolve(__dirname,'..'),root=path.resolve(source,'../../..'),snapshot=path.resolve(process.env.PASEO_PET_BUILD_SNAPSHOT??path.join(root,'research/desktop-pet/complete-26.1027.6604')),rspack=fs.existsSync(path.join(snapshot,'rspack-manifest.json'));
 const output=path.resolve(process.env.PASEO_PET_BUILD_OUTPUT??path.join(root,'artifacts/desktop-pet/rebuild/package')),app=path.join(output,'app');fs.mkdirSync(app,{recursive:true});
 for(const file of ['derived/editor-original.js','derived/surface-native.js','derived/surface-styles.json','derived/desktop-original.cjs','derived/settings-original.js','derived/settings-original.provenance.json','derived/ui-text-original.js'])if(!fs.existsSync(path.join(snapshot,file)))throw Error('Run original extraction first: '+file);
@@ -47,7 +48,7 @@ fs.writeFileSync(path.join(plugin,'server/launch.json'),JSON.stringify({executab
 fs.writeFileSync(path.join(app,'server/launch.json'),JSON.stringify({executable:path.resolve(app,launch.executable),entry:path.resolve(app,launch.entry),config:path.resolve(app,launch.config),cwd:app},null,2));
 esbuild.buildSync({entryPoints:[path.join(app,'index.server.ts')],bundle:true,platform:'node',format:'esm',external:['@getpaseo/plugin','@getpaseo/plugin/server','zod'],nodePaths:[path.join(source,'node_modules')],outfile:path.join(app,'index.server.js')});
 esbuild.buildSync({entryPoints:[path.join(plugin,'index.client.ts')],bundle:true,platform:'browser',format:'esm',external:['@getpaseo/plugin','@getpaseo/plugin/client','zod'],nodePaths:[path.join(source,'node_modules')],outfile:path.join(app,'index.client.js')});
-fs.writeFileSync(path.join(app,'package.json'),JSON.stringify({name:'paseo-codex-pets',version:'0.8.2-beta.1',private:true,type:'module',dependencies:{'@getpaseo/plugin':'0.14.0','@getpaseo/client':'0.14.0',zod:'^4.4.3'}},null,2));
+fs.writeFileSync(path.join(app,'package.json'),JSON.stringify({name:'paseo-codex-pets',version,private:true,type:'module',dependencies:{'@getpaseo/plugin':'0.14.0','@getpaseo/client':'0.14.0',zod:'^4.4.3'}},null,2));
 fs.writeFileSync(path.join(app,'paseo-plugin.json'),JSON.stringify({id:'paseo-codex-pets',name:'코덱스 펫',description:'원본 펫 화면과 창 관리기를 파세오 대화에 연결합니다.',requirements:{paseo:'>=0.14.0'},media:[]},null,2));
-fs.writeFileSync(path.join(output,'build.json'),JSON.stringify({version:'0.8.2-beta.1',app,originalAsarSha256:snapshotHash,entrySha256:crypto.createHash('sha256').update(fs.readFileSync(path.join(app,launch.entry))).digest('hex'),installed:false},null,2));
+fs.writeFileSync(path.join(output,'build.json'),JSON.stringify({version,app,originalAsarSha256:snapshotHash,entrySha256:crypto.createHash('sha256').update(fs.readFileSync(path.join(app,launch.entry))).digest('hex'),installed:false},null,2));
 console.log('Built original pet package: '+app);
